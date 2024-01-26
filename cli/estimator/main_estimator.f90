@@ -59,7 +59,7 @@ logical::mc2_Save,par_Save,dat_Save,pdf_Save,cdf_Save,&
 ! END ResultFiles
 !!!!!!!!!!!!!!!!!!!
 ! ResultOptions
-real(mrk)::xmin,xmax,xn,pmin,pmax,pn,level,PtoT,step 
+real(mrk)::xmin,xmax,xn,pmin,pmax,pn,level,PtoT,step
 character(250)::pp,kernel
 ! END ResultOptions
 !!!!!!!!!!!!!!!!!!!
@@ -73,7 +73,7 @@ cdf_Save=.true.
 prd_Save=.true.
 qtl_Save=.true.
 emp_Save=.true.
-                          
+
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 !                      STEP 1: READ CONFIG FILES                       !
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -125,7 +125,10 @@ if(.not.QTonly) then ! Full inference
                            pp=pp,kernel=kernel,& ! options for empirical stats
                            pmin=pmin,pmax=pmax,pn=pn,level=level,PtoT=PtoT,invertT=invertT,& ! options for quantiles
                            err=err)
-    if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem reading Config_ResultOptions file';call exit(err_readConfigResultOptions);endif
+    if(err/=0) then
+        write(*,*) 'Estimator:FATAL:Problem reading Config_ResultOptions file'
+        call exit(err_readConfigResultOptions)
+    endif
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     !            STEP 2: Read Data and handle missing values               !
@@ -140,7 +143,8 @@ if(.not.QTonly) then ! Full inference
     case default
         write(*,*) 'Estimator:FATAL:Unknown data format';call exit(err_unknownDataFormat);
     end select
-    if(associated(x)) nullify(x);allocate(x(size(y,1),size(y,2)))
+    if(associated(x)) nullify(x)
+    allocate(x(size(y,1),size(y,2)))
     x=y
     !call RemoveMV(yin=y,mvOption=mvOption,O1_value=O1_value,&
     !              O2_cond=O2_cond,O2_value=O2_value,&
@@ -165,14 +169,14 @@ if(.not.QTonly) then ! Full inference
     MCMChead(npar+1)='LogPosterior'
     call Bayes_EstimPar(X=x(:,obscol),distID=trim(dist),mv=O1_value,&
                         PriorList=priors,& ! Data & Model
-				        ! Tuning of the MCMC sampler
-				        start=teta0,startStd=teta_std0,&
-				        nAdapt=nAdapt,nCycles=nCycles,&
-				        MinMoveRate=MinMoveRate,MaxMoveRate=MaxMoveRate,&
-				        DownMult=DownMult,UpMult=UpMult,&
-				        OutFile=trim(exepath)//trim(MCMC_tempFile), &
-				        ! error handling
-				        headers=MCMChead,err=err,mess=mess)
+                        ! Tuning of the MCMC sampler
+                        start=teta0,startStd=teta_std0,&
+                        nAdapt=nAdapt,nCycles=nCycles,&
+                        MinMoveRate=MinMoveRate,MaxMoveRate=MaxMoveRate,&
+                        DownMult=DownMult,UpMult=UpMult,&
+                        OutFile=trim(exepath)//trim(MCMC_tempFile), &
+                        ! error handling
+                        headers=MCMChead,err=err,mess=mess)
     if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem during MCMC sampling';call exit(err_MCMC);endif
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -189,7 +193,7 @@ if(.not.QTonly) then ! Full inference
     ! BAY_MC2: Load MCMC samples
     call LoadMCMCsample(File=trim(exepath)//trim(MCMC_tempFile),&
                         BurnFactor=BurnFactor,Nslim=Nslim,distID=dist,&
-								        mcmc=mcmc,LogPost=LogPost,err=err,mess=mess)
+                        mcmc=mcmc,LogPost=LogPost,err=err,mess=mess)
     if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem during loading MCMC samples';call exit(err_loadMCMC);endif
 
     ! BAY_MC2: write burned & slimmed MCMC samples
@@ -218,14 +222,15 @@ if(.not.QTonly) then ! Full inference
                             sdev=par_std,IC90=par_IC,correl=par_cor,&
                             err=err,mess=mess)
         if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem summarizing MCMC samples';call exit(err_summarizeMCMC);endif
-        if(allocated(matrice)) deallocate(matrice);allocate(matrice(npar,6))
+        if(allocated(matrice)) deallocate(matrice)
+        allocate(matrice(npar,6))
         matrice(:,1)=par_modal
         matrice(:,2)=par_median
         matrice(:,3)=par_mean
         matrice(:,4)=par_std
         matrice(:,5:6)=par_IC
         call WriteSeparatedFile(file=trim(workspace)//trim(par_File),sep=sep,y=matrice,&
-                            headers=(/'mode','median','mean','stdev','q05','q95'/),err=err,mess=mess)
+                            headers=(/'mode    ','median  ','mean    ','stdev   ','q05     ','q95     '/),err=err,mess=mess)
         if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem writing bay_par file';call exit(err_writePar);endif
         call WriteSeparatedFile(file=trim(workspace)//trim(par_File),sep=sep,y=par_cor,&
                             headers=(/'correlation'/),append=.true.,err=err,mess=mess)
@@ -248,33 +253,35 @@ if(.not.QTonly) then ! Full inference
                                 SortedX=SortedX,Epdf=Epdf,Ecdf=Ecdf,ET=ET,&
                                 err=err,mess=mess)
         if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem Computing Empirical estimates';call exit(err_Emp);endif
-        if(allocated(matrice)) deallocate(matrice);allocate(matrice(size(ET),4))
+        if(allocated(matrice)) deallocate(matrice)
+        allocate(matrice(size(ET),4))
             matrice(:,1)=SortedX
             matrice(:,2)=Epdf
             matrice(:,3)=Ecdf
             matrice(:,4)=ET
             call WriteSeparatedFile(file=trim(workspace)//trim(emp_File),sep=sep,y=matrice,&
-                                headers=(/'x','Epdf(x)','Ecdf(x)','ET(x)'/),err=err,mess=mess)
+                                headers=(/'x       ','Epdf(x) ','Ecdf(x) ','ET(x)   '/),err=err,mess=mess)
             if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem writing bay_emp file';call exit(err_writeEmp);endif
     endif
 
     ! BAY_PRD
     if(prd_Save .or. pdf_Save .or. cdf_Save .or. qtl_Save) then
         call GeneratePred(mcmc=mcmc,distID=dist,nrep=nrep,pred=pred,&
-                          err=err,mess=mess)   
+                          err=err,mess=mess)
         if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem Generating values from predictive';call exit(err_pred);endif
-        if(allocated(matrice)) deallocate(matrice);allocate(matrice(size(pred),1))
-            matrice(:,1)=pred
-            call WriteSeparatedFile(file=trim(workspace)//trim(prd_File),sep=sep,y=matrice,&
+        if(allocated(matrice)) deallocate(matrice)
+        allocate(matrice(size(pred),1))
+        matrice(:,1)=pred
+        call WriteSeparatedFile(file=trim(workspace)//trim(prd_File),sep=sep,y=matrice,&
                                 headers=(/'replicates'/),err=err,mess=mess)
-            if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem writing bay_prd file';call exit(err_writePrd);endif
+        if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem writing bay_prd file';call exit(err_writePrd);endif
     endif
 
     ! BAY_PDF, BAY_CDF and BAY_QTL
     if(pdf_Save .or. cdf_Save .or. qtl_Save) then
         if(allocated(mode)) deallocate(mode)
         allocate(mode(npar))
-        
+
         if(allocated(xlist)) deallocate(xlist)
         allocate(xlist(nint(xn)))
         call GetMode(mcmc=mcmc,LogPost=LogPost,mode=mode,err=err,mess=mess)
@@ -285,12 +292,12 @@ if(.not.QTonly) then ! Full inference
         if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem computing xlist';call exit(err_xlist);endif
         step=(xmaxi-xmini)/real(xn-1,mrk)
         forall(i=1:nint(xn)) xlist(i)=xmini+(i-1)*step
-        
+
         if(allocated(plist)) deallocate(plist)
         allocate(plist(nint(pn)))
         step=(10._mrk**pmax-10._mrk**pmin)/real(pn-1,mrk)
         forall(i=1:nint(pn)) plist(i)=log10(10._mrk**pmin+(i-1)*step)
-     
+
         if(allocated(pdf_modal)) deallocate(pdf_modal)
         allocate(pdf_modal(nint(xn)))
         if(allocated(pdf_pred)) deallocate(pdf_pred)
@@ -305,14 +312,14 @@ if(.not.QTonly) then ! Full inference
         allocate(Qp_pred(nint(pn)))
         if(allocated(IC_modal)) deallocate(IC_modal)
         allocate(IC_modal(nint(pn),2))
-       
+
         call GetModalEstimates(mcmc=mcmc,LogPost=LogPost,distID=dist,&
                               mode=mode,&
                               x=xlist,pdf=pdf_modal,cdf=cdf_modal,&
                               p=plist,Qp=Qp_modal,IC=IC_modal,&
-                              level=level,err=err,mess=mess)    
+                              level=level,err=err,mess=mess)
         if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem computing modal estimates';call exit(err_modal);endif
-        
+
         call GetPredictiveEstimates(pred=pred,&
                               x=xlist,pdf=pdf_pred,cdf=cdf_pred,&
                               p=plist,Qp=Qp_pred,&
@@ -328,7 +335,7 @@ if(.not.QTonly) then ! Full inference
             matrice(:,2)=cdf_modal
             matrice(:,3)=cdf_pred
             call WriteSeparatedFile(file=trim(workspace)//trim(cdf_File),sep=sep,y=matrice,&
-                                headers=(/'x','modal_F(x)','pred_F(x)'/),err=err,mess=mess)
+                                headers=(/'x          ','modal_F(x) ','pred_F(x)  '/),err=err,mess=mess)
             !call DatWrite(y=matrice,file=trim(workspace)//trim(cdf_File),&
             !        headers=(/'x','modal_F(x)','pred_F(x)'/),err=err,mess=mess)
             if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem writing bay_cdf file';call exit(err_writeCdf);endif
@@ -341,7 +348,7 @@ if(.not.QTonly) then ! Full inference
             matrice(:,2)=pdf_modal
             matrice(:,3)=pdf_pred
             call WriteSeparatedFile(file=trim(workspace)//trim(pdf_File),sep=sep,y=matrice,&
-                                headers=(/'x','modal_f(x)','pred_f(x)'/),err=err,mess=mess)
+                                headers=(/'x          ','modal_f(x) ','pred_f(x)  '/),err=err,mess=mess)
             !call DatWrite(y=matrice,file=trim(workspace)//trim(pdf_File),&
             !        headers=(/'x','modal_f(x)','pred_f(x)'/),err=err,mess=mess)
             if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem writing bay_pdf file';call exit(err_writePdf);endif
@@ -357,7 +364,8 @@ if(.not.QTonly) then ! Full inference
             matrice(:,5)=IC_modal(:,2)
             matrice(:,6)=Qp_pred
             call WriteSeparatedFile(file=trim(workspace)//trim(qtl_File),sep=sep,y=matrice,&
-                                headers=(/'p','T','modal_Q(p)','IC_lower','IC_upper','pred_Q(p)'/),err=err,mess=mess)
+                  headers=(/'p          ','T          ','modal_Q(p) ','IC_lower   ','IC_upper   ','pred_Q(p)  '/),&
+                                err=err,mess=mess)
             !call DatWrite(y=matrice,file=trim(workspace)//trim(qtl_File),&
             !        headers=(/'p','T','modal_Q(p)','IC_lower','IC_upper','pred_Q(p)'/),&
             !        err=err,mess=mess)
@@ -380,51 +388,53 @@ else ! Only compute Q or T
                         mcmc=mcmc,LogPost=LogPost,err=err,mess=mess)
     if(err/=0) then;write(*,*) 'Estimator:FATAL:Problem reading MCMC file';call exit(err_loadMCMC);endif
     N=size(mcmc,dim=1)
-    if(allocated(xlist)) deallocate(xlist);allocate(xlist(N))
-    if(allocated(mode)) deallocate(mode);allocate(mode(npar))
+    if(allocated(xlist)) deallocate(xlist)
+    allocate(xlist(N))
+    if(allocated(mode)) deallocate(mode)
+    allocate(mode(npar))
     call GetMode(mcmc,LogPost,mode,err,mess)
-    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif            
+    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
     ! Compute Q or T for mode and all MCMC parameters
     ok=.true.
     if(QorT=='Q') then
         prob=T2p(val,PtoT,invertT)
         if(abs(prob)/=undefRN) then
             call GetQuantile(DistId=dist,p=prob,par=mode,q=maxpost,feas=feas,err=err,mess=mess)
-            if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif            
+            if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
             do i=1,N
                 call GetQuantile(DistId=dist,p=prob,par=mcmc(i,:),q=xlist(i),feas=feas,err=err,mess=mess)
-                if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif            
-            enddo  
+                if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
+            enddo
         else
             ok=.false.
-        endif      
+        endif
     else if(QorT=='T') then
         call GetCdf(DistId=dist,x=val,par=mode,cdf=prob,feas=feas,err=err,mess=mess)
-        if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif            
+        if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
         if(prob>0._mrk .and. prob<1.0_mrk) then
             maxpost=p2T(prob,PtoT,invertT)
             do i=1,N
                 call GetCdf(DistId=dist,x=val,par=mcmc(i,:),cdf=prob,feas=feas,err=err,mess=mess)
-                if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif            
+                if(err/=0 .or. (.not. feas)) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
                 xlist(i)=p2T(prob,PtoT,invertT)
             enddo
         else
             ok=.false.
-        endif      
+        endif
     else
         write(*,*) 'Estimator:FATAL: in Config_GetQT, invalid QorT value';call exit(err_misc)
     endif
     if(.not.ok) then;write(*,*) 'Estimator:FATAL:Problem computing '//QorT;call exit(err_GetQT);endif
     ! Compute uncertainty interval
     call GetEmpiricalQuantile(p=0.5_mrk*(1._mrk-level),x=xlist,q=lo,err=err,mess=mess)
-    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif            
+    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
     call GetEmpiricalQuantile(p=1._mrk-0.5_mrk*(1._mrk-level),x=xlist,q=hi,err=err,mess=mess)
-    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif  
+    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
    ! write result
    call WriteSeparatedFile(file=trim(workspace)//trim(QT_File),sep=sep,&
                            y=reshape((/maxpost,lo,hi/),(/1,3/)),&
-                           headers=(/'maxpost','UC_low','UC_high'/),err=err,mess=mess)
-    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif  
+                           headers=(/'maxpost ','UC_low  ','UC_high '/),err=err,mess=mess)
+    if(err/=0) then;write(*,*) 'Estimator:FATAL:'//trim(mess);call exit(err_misc);endif
 endif
 
 write(*,*) 'Estimator ran successfully'
