@@ -8,7 +8,7 @@ implicit none
 
 !-----------------------
 ! Constants
-character(len_stdStrD),parameter::version="0.1.0 July 2023"
+character(len_stdStrD),parameter::version="0.2.0 April 2025"
 character(250),parameter::fmt_numeric='e24.15E3',fmt_string='A24'
 integer(mik),parameter::nsim_def=100,nx_def=100
 character(len_vLongStr),parameter::resFile_def='distribution_result.txt'
@@ -28,7 +28,7 @@ character(len_vLongStr)::resFile
 ! Misc.
 integer(mik)::i,err,narg,k
 character(len_vLongStr)::mess,arg
-logical::feas,isnull
+logical::feas,isnull,doConsole
 !-----------------------
 
 ! init
@@ -36,6 +36,7 @@ distID='';npar=undefIN;act=''
 nsim=nsim_def
 resFile=resFile_def
 nx=undefIN
+doConsole=.false.
 
 ! Interpret command line arguments
 i=1
@@ -102,6 +103,9 @@ do while (i<=narg)
         else
             call consoleMessage(-1,'-rf requires the name of the results file as a path to a file')
         endif
+     case ('-con', '--console')
+        i=i+1
+        doConsole=.true.
      case ('-x', '--xgrid')
         i=i+1
         if(i<=narg) then
@@ -192,19 +196,31 @@ select case (trim(act))
         call fatalExit
 end select
 
-! Write result to file and stop
-open(unit=1,file=resFile,status='REPLACE')
-if(act=='r') then
-    do i=1,size(res)
-        write(1,'('//trim(fmt_numeric)//')') res(i)
-    enddo
+! Write result to file or console and stop
+if(doConsole) then
+    if(act=='r') then
+        do i=1,size(res)
+            write(*,'('//trim(fmt_numeric)//')') res(i)
+        enddo
+    else
+        do i=1,size(res)
+            write(*,'('//trim(fmt_numeric)//','//trim(fmt_numeric)//')') xgrid(i),res(i)
+        enddo
+    endif
 else
-    do i=1,size(res)
-        write(1,'('//trim(fmt_numeric)//','//trim(fmt_numeric)//')') xgrid(i),res(i)
-    enddo
+    open(unit=1,file=resFile,status='REPLACE')
+    if(act=='r') then
+        do i=1,size(res)
+            write(1,'('//trim(fmt_numeric)//')') res(i)
+        enddo
+    else
+        do i=1,size(res)
+            write(1,'('//trim(fmt_numeric)//','//trim(fmt_numeric)//')') xgrid(i),res(i)
+        enddo
+    endif
+    close(1)
+    call consoleMessage(1,resFile)
 endif
-close(1)
-call consoleMessage(1,resFile)
 
 contains
 
@@ -241,6 +257,7 @@ subroutine printHelp()
     write(*,'(a)') 'available options:'
     write(*,'(a)') '  -v, --version:..............print version information and exit'
     write(*,'(a)') '  -h, --help:.................print help and exit'
+    write(*,'(a)') '  -con, --console:............print result in console rather than writing it to file'
     write(*,'(a)') '  -n, --nsim XXX:.............number of realizations when -act is r. Default 1000'
     write(*,'(a)') '  -x, --xgrid XXX:............computation grid when -act is d,p or q, in the form: low,high,nvalues'
     write(*,'(a)') '  -rf, --result XXX:..........path to results file. Default distribution_result.txt'
