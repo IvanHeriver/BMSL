@@ -75,6 +75,7 @@ Character(100), parameter, PUBLIC:: & ! Shortcut for distribution names
             Beta='Beta',&
             Kumaraswamy='Kumaraswamy',Kuma='Kumaraswamy',&
             MSPrior='MSPrior',& ! Martins & Stedinger's prior for GEV shape (some beta dist. translated between -0.5 and 0.5)
+            VonMises='VonMises',&
             ! Discrete distributions
             Bernoulli='Bernoulli',&
             GEOM='Geometric',&
@@ -129,7 +130,7 @@ case(Bernoulli, GEOM, Poisson)
     npar=1
 case(GAUSS, UNIF, InvChi2, Gumbel, Binomial, NegBinomial, NegBinomial2,&
      GUM_reparameterized,Gauss_reparameterized,LogN,GUM_min,GEV_min_pos,&
-     EXPO,Beta,Kuma)
+     EXPO,Beta,Kuma,VonMises)
     npar=2
 case(AR1, GEORGE, GEV,GEV_Histo,GPD,TRIANGLE,GEV_reparameterized,PearsonIII,&
     PearsonIII_reparameterized,GEV_min,LogN3)
@@ -232,6 +233,9 @@ case(TRIANGLE)
     name(1)='peak'
     name(2)='lower_bound'
     name(3)='higher_bound'
+case(VonMises)
+    name(1)='mean'
+    name(2)='concentration'
 case(Bernoulli)
     name(1)='success_prob'
 case(GEOM)
@@ -296,6 +300,7 @@ pure subroutine GetParFeas(DistID, par, feas, err, mess)
 !^*    2.err, error code
 !^*    3.mess, error message
 !^**********************************************************************
+use utilities_dmsl_kit, only:pi
 
 character(*),intent(in)::DistID
 real(mrk), intent(in)::par(:)
@@ -338,6 +343,8 @@ case(GEV_reparameterized,Gumbel_reparameterized)
     if (par(2)*par(1) <= 0.0_mrk) feas=.false.
 case(TRIANGLE)
     if (par(3)<=par(2) .or. par(1)<=par(2) .or. par(1)>=par(3)) feas=.false.
+case(VonMises)
+    if (par(1)<0._mrk .or. par(1)>2._mrk*pi .or. par(2)<0._mrk) feas=.false.
 case(Bernoulli)
     if (par(1)<0 .or. par(1)>1) feas=.false.
 case(GEOM)
@@ -398,7 +405,7 @@ real(mrk), intent(out)::par(:)
 integer(mik), intent(out)::err
 character(*),intent(out)::mess
 ! Locals
-real(mrk),parameter::eps=0.000001_mrk,xi0=0.001_mrk ! 0.1_mrk
+real(mrk),parameter::eps=0.000001_mrk,xi0=0.001_mrk,kappa0=sqrt(2._mrk)
 logical::ok
 real(mrk)::mean,std,scale,skew,mini
 
@@ -507,6 +514,12 @@ case(TRIANGLE)
     if(err>0) then
         mess="GetRoughEstimate: "//trim(mess);return
     endif
+case(VonMises)
+    call GetEmpiricalStats(x=X,mean=par(1),err=err,mess=mess)
+    if(err>0) then
+        mess="GetRoughEstimate: "//trim(mess);return
+    endif
+    par(2)=kappa0
 case(PearsonIII)
     call GetEmpiricalStats(x=X,mini=mini,std=std,skewness=skew,err=err,mess=mess)
     if(err>0) then
@@ -831,6 +844,15 @@ case(TRIANGLE)
             pdf=exp(pdf)
         endif
     endif
+case(VonMises)
+    call VonMises_logP(x=x,mu=par(1),kappa=par(2),logp=pdf,feas=feas,isnull=isnull)
+    if(.not.loga) then
+        if(isnull) then
+            pdf=0.0_mrk
+        else
+            pdf=exp(pdf)
+        endif
+    endif
 case(Bernoulli)
     call Ber_pdf(x=xi,p=par(1),pdf=pdf,isnull=isnull)
     if(loga) then
@@ -1110,6 +1132,8 @@ case(Gumbel_reparameterized)
     call GEV_cdf(x=x,loc=par(1),scale=par(1)*par(2),shape=0._mrk,cdf=cdf,feas=feas)
 case(TRIANGLE)
     call Triangle_cdf(x=x, peak=par(1),a=par(2), b=par(3), cdf=cdf, feas=feas)
+case(VonMises)
+    err=20;mess='GetCdf:Fatal: No CDF for circular distribution [VonMises]';return
 case(Bernoulli)
     if (x<0._mrk) cdf=0._mrk
     if (x>=1._mrk) cdf=1._mrk
@@ -1272,6 +1296,8 @@ case(Gumbel_reparameterized)
     call GEV_Quant(p=p, loc=par(1),scale=par(1)*par(2),shape=0._mrk,q=q, feas=feas)
 case(TRIANGLE)
     call Triangle_Quant(p=p, peak=par(1),a=par(2),b=par(3),q=q,feas=feas)
+case(VonMises)
+    err=20;mess='GetQuantile:Fatal: No quant implemented for circular distribution [VonMises]';return
 case(FLATPRIOR)
     err=20;mess='GetQuantile:Fatal: No quant for improper [FLATPRIOR]';return
 case(FLATPRIORPositive)
@@ -1350,7 +1376,7 @@ if(.not.feas) return
 
 !Compute
 select case(DistID)
-case(GAUSS,GAUSS_reparameterized)
+case(GAUSS,GAUSS_reparameterized,VonMises)
     m=par(1)
 case(InvChi2)
     if(par(1)<=2.0_mrk) then
@@ -1453,7 +1479,7 @@ if(.not.feas) return
 
 !Compute
 select case(DistID)
-case(GAUSS,GAUSS_reparameterized)
+case(GAUSS,GAUSS_reparameterized,VonMises)
     m=par(1)
 case(InvChi2)
     m=(par(1)*par(2)**2)/(par(1)+2.0_mrk)
@@ -1596,6 +1622,8 @@ case(GEV,Gumbel,GEV_Histo,GPD,GEV_reparameterized,Gumbel_reparameterized,GEV_min
     err=1;mess='GetStdev:Fatal:Not yet coded for this distribution'
 case(TRIANGLE)
     err=1;mess='GetStdev:Fatal:Not yet coded for dist=TRIANGLE'
+case(VonMises)
+    err=1;mess='GetStdev:Fatal:Not yet coded for dist=VonMises'
 case(Bernoulli)
     s=sqrt(par(1)*(1._mrk-par(1)))
 case(GEOM)
@@ -1758,6 +1786,8 @@ case(Gumbel_reparameterized)
 case(TRIANGLE)
     call uniran(prob)
     call Triangle_Quant(prob,par(1),par(2),par(3),gen,feas)
+case(VonMises)
+    err=20;mess='Generate:Fatal: Not yet implemented for circular distribution [VonMises]';return
 case(Bernoulli)
     gen=Ber_dev(par(1))
 case(GEOM)
@@ -2531,7 +2561,6 @@ endif
 
 end subroutine GPD_Logp
 
-
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 pure subroutine GEV_cdf(x, loc,scale,shape,cdf, feas)
@@ -3084,6 +3113,49 @@ end subroutine InvChi2_cdf
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+pure subroutine VonMises_logP(x,mu,kappa,logp,feas,isnull)
+
+!^**********************************************************************
+!^* Purpose: Log-density of a VonMises(mu,kappa) circular distribution
+!^**********************************************************************
+!^* Programmer: Ben Renard, INRAE
+!^**********************************************************************
+!^* Last modified: 28/07/2025
+!^**********************************************************************
+!^* Comments: https://en.wikipedia.org/wiki/Von_Mises_distribution
+!^**********************************************************************
+!^* References:
+!^**********************************************************************
+!^* 2Do List:
+!^**********************************************************************
+!^* IN
+!^*    1. x, value
+!^*    2. mu, mean
+!^*    3. kappa, concentration
+!^* OUT
+!^*    1.logp, log-density
+!^*    2.feas, feasible?
+!^*    3.isnull, is density=0?
+!^**********************************************************************
+use utilities_dmsl_kit, only:pi
+
+real(mrk), intent(in)::x, mu,kappa
+real(mrk), intent(out):: logp
+logical, intent(out)::feas, isnull
+!locals
+
+logp=UndefRN;feas=.true.;isnull=.false.
+
+if(kappa<0._mrk) then
+    feas=.false.;return
+endif
+
+logp=kappa*cos(x-mu)-log(2._mrk*pi*Bessel_I0(kappa))
+
+end subroutine VonMises_logP
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 pure function Real2Int(r)
 !^**********************************************************************
 !^* Purpose: Transforme a real to the nearest integer.
@@ -3335,5 +3407,51 @@ feas=.false.
 end subroutine Beta_Quant
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+pure function Bessel_I0(x)
+
+!^**********************************************************************
+!^* Purpose: Compute the Modified Bessel function of order 0 I0(x)
+!^**********************************************************************
+!^* Programmer: Ben Renard, INRAE
+!^**********************************************************************
+!^* Last modified: 28/07/2025
+!^**********************************************************************
+!^* Comments:
+!^**********************************************************************
+!^* References: Numerical Recipies, https://numerical.recipes/book.html,
+!^*   https://numerical.recipes/abramowitz_and_stegun_html/page_378.htm
+!^**********************************************************************
+!^* 2Do List:
+!^**********************************************************************
+!^* IN
+!^*    1. x,value
+!^* OUT
+!^*    1.I0(x)
+!^**********************************************************************
+
+real(mrk), intent(in)::x
+real(mrk):: Bessel_I0
+! locals
+real(mrk)::t,res,ax
+
+ax=abs(x)
+if(ax<=3.75_mrk) then
+    t=x/3.75_mrk
+    res=1._mrk+3.5156229_mrk*(t**2)+3.0899424_mrk*(t**4)+1.2067492_mrk*(t**6)+&
+        0.2659732_mrk*(t**8)+0.0360768_mrk*(t**10)+0.0045813_mrk*(t**12)
+else
+    t=3.75_mrk/x
+    res=(exp(ax)/sqrt(ax))*&
+        (0.39894228_mrk+0.01328592_mrk*t+0.00225319_mrk*(t**2)-0.00157565_mrk*(t**3)+&
+         0.00916281_mrk*(t**4)-0.02057706_mrk*(t**5)+0.02635537_mrk*(t**6)-&
+         0.01647633_mrk*(t**7)+0.00392377_mrk*(t**8))
+endif
+Bessel_I0=res
+
+end function Bessel_I0
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 end module Distribution_tools
